@@ -1,0 +1,16 @@
+body {
+    background-color: #f8f9fa;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 600px;
+}
+
+h1 {
+    color: #007bff;
+}
+
+.form-group label {
+    font-weight: bold;
+}
