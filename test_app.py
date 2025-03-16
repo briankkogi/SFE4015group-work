@@ -7,38 +7,43 @@ import numpy as np
 # Add the project root directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Create mock objects before importing app
-mock_prediction = np.array([0])  # low risk prediction
-mock_label = 'low risk'
-
-class MockModel:
-    def predict(self, X):
-        return mock_prediction
-
-class MockScaler:
-    def transform(self, X):
-        return np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0]])
-
-class MockEncoder:
-    def inverse_transform(self, X):
-        return np.array([mock_label])
-
+# Mock the model loading before importing app
 @pytest.fixture(autouse=True)
-def mock_dependencies():
+def mock_dependencies(monkeypatch):
     """Mock all external dependencies before importing app"""
-    with patch('joblib.load') as mock_load:
-        # Configure mock to return different objects for different model files
-        def load_side_effect(filename):
-            if 'best_stacking_model' in filename:
-                return MockModel()
-            elif 'scaler' in filename:
-                return MockScaler()
-            elif 'label_encoder' in filename:
-                return MockEncoder()
-            raise FileNotFoundError(f"Mock cannot find {filename}")
-            
-        mock_load.side_effect = load_side_effect
-        yield mock_load
+    # Create mock prediction and label
+    mock_prediction = np.array([0])  # low risk prediction
+    mock_label = 'low risk'
+    
+    # Create mock classes with proper numpy arrays
+    class MockModel:
+        def predict(self, X):
+            return mock_prediction
+
+    class MockScaler:
+        def transform(self, X):
+            # Ensure X is a numpy array
+            X = np.array(X) if not isinstance(X, np.ndarray) else X
+            return np.array([[1.0] * X.shape[1]])
+
+    class MockEncoder:
+        def inverse_transform(self, X):
+            return np.array([mock_label])
+
+    # Patch joblib.load before importing app
+    def mock_load(filename):
+        if 'best_stacking_model' in filename:
+            return MockModel()
+        elif 'scaler' in filename:
+            return MockScaler()
+        elif 'label_encoder' in filename:
+            return MockEncoder()
+        raise FileNotFoundError(f"Mock cannot find {filename}")
+
+    # Use monkeypatch to avoid issues with pickle loading
+    monkeypatch.setattr('joblib.load', mock_load)
+    
+    return mock_label
 
 # Import app after setting up mocks
 from app import app
@@ -55,7 +60,7 @@ def test_home_page(client):
     response = client.get('/')
     assert response.status_code == 200
 
-def test_prediction_endpoint_success(client):
+def test_prediction_endpoint_success(client, mock_dependencies):
     """Test the prediction endpoint with valid data"""
     test_data = {
         'Age': 25,
@@ -67,7 +72,7 @@ def test_prediction_endpoint_success(client):
     }
     response = client.post('/predict', data=test_data)
     assert response.status_code == 200
-    assert mock_label.encode() in response.data
+    assert mock_dependencies.encode() in response.data
 
 def test_prediction_endpoint_invalid_data(client):
     """Test the prediction endpoint with invalid data"""
