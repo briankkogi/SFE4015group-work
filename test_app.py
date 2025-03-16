@@ -7,30 +7,29 @@ import numpy as np
 # Add the project root directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+# Create mock objects before importing app
+mock_prediction = np.array([0])  # low risk prediction
+mock_label = 'low risk'
+
+# Create mock classes with proper numpy arrays
+class MockModel:
+    def predict(self, X):
+        return mock_prediction
+
+class MockScaler:
+    def transform(self, X):
+        # Ensure X is a numpy array
+        X = np.array(X) if not isinstance(X, np.ndarray) else X
+        return np.array([[1.0] * X.shape[1]])
+
+class MockEncoder:
+    def inverse_transform(self, X):
+        return np.array([mock_label])
+
 # Mock the model loading before importing app
 @pytest.fixture(autouse=True)
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies before importing app"""
-    # Create mock prediction and label
-    mock_prediction = np.array([0])  # low risk prediction
-    mock_label = 'low risk'
-    
-    # Create mock classes with proper numpy arrays
-    class MockModel:
-        def predict(self, X):
-            return mock_prediction
-
-    class MockScaler:
-        def transform(self, X):
-            # Ensure X is a numpy array
-            X = np.array(X) if not isinstance(X, np.ndarray) else X
-            return np.array([[1.0] * X.shape[1]])
-
-    class MockEncoder:
-        def inverse_transform(self, X):
-            return np.array([mock_label])
-
-    # Patch joblib.load before importing app
     def mock_load(filename):
         if 'best_stacking_model' in filename:
             return MockModel()
@@ -40,13 +39,21 @@ def mock_dependencies(monkeypatch):
             return MockEncoder()
         raise FileNotFoundError(f"Mock cannot find {filename}")
 
-    # Use monkeypatch to avoid issues with pickle loading
-    monkeypatch.setattr('joblib.load', mock_load)
+    # Patch joblib.load
+    import joblib
+    monkeypatch.setattr(joblib, 'load', mock_load)
     
     return mock_label
 
 # Import app after setting up mocks
-from app import app
+with patch('joblib.load') as mock_load:
+    mock_load.side_effect = lambda x: (
+        MockModel() if 'best_stacking_model' in x
+        else MockScaler() if 'scaler' in x
+        else MockEncoder() if 'label_encoder' in x
+        else None
+    )
+    from app import app
 
 @pytest.fixture
 def client():
