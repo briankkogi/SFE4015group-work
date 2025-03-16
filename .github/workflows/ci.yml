@@ -39,9 +39,14 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     
     - name: Test with pytest and generate coverage report
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
-        # Add the current directory to PYTHONPATH for import resolution
-        PYTHONPATH=$PYTHONPATH:$(pwd) pytest -v --cov=./ --cov-report=xml
+        # List directory contents to verify file structure
+        echo "Workspace directory contents:"
+        ls -la
+        # Run pytest with extensive debug info
+        python -m pytest -v --cov=./ --cov-report=xml
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
