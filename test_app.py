@@ -1,6 +1,18 @@
 import pytest
+from unittest.mock import patch
+import numpy as np
+
+# Mock the model and related components
+@pytest.fixture(autouse=True)
+def mock_model():
+    with patch('joblib.load') as mock_load:
+        # Create mock objects for model, scaler, and label_encoder
+        mock_model = mock_load.return_value
+        mock_model.predict.return_value = np.array([0])  # Mock prediction
+        yield mock_load
+
+# Import app after setting up mocks to avoid loading real models
 from app import app
-import json
 
 @pytest.fixture
 def client():
