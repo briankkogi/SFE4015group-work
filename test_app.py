@@ -1,32 +1,40 @@
+import os
+import sys
 import pytest
 from unittest.mock import patch, MagicMock
 import numpy as np
 
-# Mock the model and related components before importing app
+# Add the project root directory to Python path
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+# Create mock objects before importing app
 mock_prediction = np.array([0])  # low risk prediction
 mock_label = 'low risk'
 
+class MockModel:
+    def predict(self, X):
+        return mock_prediction
+
+class MockScaler:
+    def transform(self, X):
+        return np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0]])
+
+class MockEncoder:
+    def inverse_transform(self, X):
+        return np.array([mock_label])
+
 @pytest.fixture(autouse=True)
 def mock_dependencies():
+    """Mock all external dependencies before importing app"""
     with patch('joblib.load') as mock_load:
-        # Create mock objects
-        mock_model = MagicMock()
-        mock_model.predict.return_value = mock_prediction
-        
-        mock_scaler = MagicMock()
-        mock_scaler.transform.return_value = np.array([[1.0, 1.0, 1.0, 1.0, 1.0, 1.0]])
-        
-        mock_encoder = MagicMock()
-        mock_encoder.inverse_transform.return_value = np.array([mock_label])
-        
         # Configure mock to return different objects for different model files
         def load_side_effect(filename):
             if 'best_stacking_model' in filename:
-                return mock_model
+                return MockModel()
             elif 'scaler' in filename:
-                return mock_scaler
+                return MockScaler()
             elif 'label_encoder' in filename:
-                return mock_encoder
+                return MockEncoder()
             raise FileNotFoundError(f"Mock cannot find {filename}")
             
         mock_load.side_effect = load_side_effect
@@ -37,6 +45,7 @@ from app import app
 
 @pytest.fixture
 def client():
+    """Create a test client"""
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
